@@ -45,6 +45,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
     implementation("androidx.activity:activity-compose:1.9.1")
 
+    implementation("androidx.compose.material:material-icons-extended:<compose_version>")
+    implementation("androidx.compose.material:material-icons-extended:<compose_version>")
     // --- Jetpack Compose (Stable BOM - Bill of Materials) ---
     // The BOM ensures all the following compose libraries are version-compatible
     val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
