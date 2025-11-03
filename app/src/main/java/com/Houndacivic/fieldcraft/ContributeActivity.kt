@@ -1,57 +1,77 @@
 package com.Houndacivic.fieldcraft
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.Houndacivic.fieldcraft.ui.theme.FieldCraftTheme
+
 class ContributeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
-            BackHandler(true) { finish() }
-            Scaffold(
-                topBar = { BackTopBar(title = "Contribute a Tip") { finish() } }
-            ) { padding ->
-                ContributeScreen(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(16.dp),
-                    onSubmit = { title, body, link ->
-                        Toast.makeText(this, "Submitted: $title", Toast.LENGTH_SHORT).show()
-                        finish()
-                    },
-                    onCancel = { finish() }
-                )
+            FieldCraftTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    ContributeScreen(onBack = { finish() })
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ContributeScreen(
-    modifier: Modifier = Modifier,
-    onSubmit: (String, String, String) -> Unit,
-    onCancel: () -> Unit
-) {
+fun ContributeScreen(onBack: () -> Unit) {
+    val dbh = remember { FieldCraftDbHelper(AppContext.get()) }
+    val prefs = remember { FieldPrefs() }
     var title by remember { mutableStateOf("") }
-    var body by remember { mutableStateOf("") }
-    var link by remember { mutableStateOf("") }
-    val valid = title.isNotBlank() && body.isNotBlank()
+    var summary by remember { mutableStateOf("") }
+    var tags by remember { mutableStateOf("") }
 
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(value = body, onValueChange = { body = it }, label = { Text("Tip / Content") }, minLines = 5, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(value = link, onValueChange = { link = it }, label = { Text("Source link (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Button(onClick = { onSubmit(title.trim(), body.trim(), link.trim()) }, enabled = valid, modifier = Modifier.fillMaxWidth()) { Text("Submit") }
-        OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = { BackTopBar(title = "Contribute a Tip", onBack = onBack) }
+    ) { pad ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedTextField(
+                value = title, onValueChange = { title = it },
+                label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = summary, onValueChange = { summary = it },
+                label = { Text("Summary") }, modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = tags, onValueChange = { tags = it },
+                label = { Text("Tags (comma-separated)") }, singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Button(
+                onClick = {
+                    val author = prefs.getDisplayName().ifBlank { prefs.getUsername() }
+                    if (title.isNotBlank() && summary.isNotBlank()) {
+                        dbh.insertArticle(title, summary, tags, author)
+                        title = ""; summary = ""; tags = ""
+                        onBack()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Submit") }
+        }
     }
 }

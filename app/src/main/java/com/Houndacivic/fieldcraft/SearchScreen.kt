@@ -1,99 +1,64 @@
 package com.Houndacivic.fieldcraft
 
-import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.Houndacivic.fieldcraft.ui.theme.FieldCraftTheme
-import com.Houndacivic.fieldcraft.ui.theme.BackTopBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class CategoryActivity : ComponentActivity() {
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        val category = intent.getStringExtra(EXTRA_CATEGORY) ?: "Category"
-
-        setContent {
-            FieldCraftTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    CategoryScreen(
-                        title = category,
-                        onBack = { finish() }
-                    )
-                }
-            }
-        }
-    }
-
-    companion object {
-        const val EXTRA_CATEGORY = "extra_category"
-
-        fun launch(ctx: Context, category: String) {
-            ctx.startActivity(
-                Intent(ctx, CategoryActivity::class.java).apply {
-                    putExtra(EXTRA_CATEGORY, category)
-                }
-            )
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CategoryScreen(
-    title: String,
-    onBack: () -> Unit
+fun SearchScreen(
+    onBack: () -> Unit,
+    dbh: FieldCraftDbHelper,
+    prefs: FieldPrefs
 ) {
-    val dbh = remember { FieldCraftDbHelper(AppContext.get()) }
-    val prefs = remember { FieldPrefs() }
-    val username = prefs.getUsername()
-    val displayName = prefs.getDisplayName().ifBlank { username }
-    val isAdmin = prefs.isAdmin()
-
     val scope = rememberCoroutineScope()
+    var query by remember { mutableStateOf("") }
     var items by remember { mutableStateOf(listOf<Article>()) }
 
-    // Add/Edit dialog state
     var dialogOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Article?>(null) }
     var tTitle by remember { mutableStateOf("") }
     var tSummary by remember { mutableStateOf("") }
-    var tTags by remember { mutableStateOf(title) } // default tag to category
+    var tTags by remember { mutableStateOf("") }
 
-    LaunchedEffect(title) { refresh(dbh, title) { items = it } }
+    val username = prefs.getUsername()
+    val displayName = prefs.getDisplayName().ifBlank { username }
+    val isAdmin = prefs.isAdmin()
 
-    fun doRefresh() = scope.launch { refresh(dbh, title) { items = it } }
+    suspend fun refresh() {
+        val result = withContext(Dispatchers.IO) { dbh.searchArticles(query) }
+        items = result
+    }
+
+    LaunchedEffect(query) {
+        refresh()
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            BackTopBar(
-                title = title,
-                onBack = onBack,
+            CenterAlignedTopAppBar(
+                title = { Text("Search") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
                 actions = {
+                    // Top-right Add (+) button
                     IconButton(onClick = {
                         editing = null
                         tTitle = ""
                         tSummary = ""
-                        tTags = title
+                        tTags = ""
                         dialogOpen = true
                     }) {
                         Icon(Icons.Filled.Add, contentDescription = "Add article")
@@ -106,9 +71,11 @@ fun CategoryScreen(
                 editing = null
                 tTitle = ""
                 tSummary = ""
-                tTags = title
+                tTags = ""
                 dialogOpen = true
-            }) { Icon(Icons.Filled.Add, contentDescription = "Add") }
+            }) {
+                Icon(Icons.Filled.Add, contentDescription = "Add")
+            }
         }
     ) { pad ->
         Column(
@@ -118,22 +85,22 @@ fun CategoryScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "Resources for $title",
-                style = MaterialTheme.typography.titleMedium
+            OutlinedTextField(
+                value = query,
+                onValueChange = {
+                    query = it
+                    scope.launch { refresh() }
+                },
+                label = { Text("Search Articles") },
+                modifier = Modifier.fillMaxWidth()
             )
-            Divider()
 
             items.forEach { a ->
-                val canModify =
-                    isAdmin || a.author.equals(displayName, true) || a.author.equals(username, true)
-
                 ElevatedCard(
-                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.elevatedCardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+                    )
                 ) {
                     Column(Modifier.padding(16.dp)) {
                         Text(a.title, style = MaterialTheme.typography.titleMedium)
@@ -144,38 +111,13 @@ fun CategoryScreen(
                             "by ${a.author.ifBlank { "unknown" }}",
                             style = MaterialTheme.typography.bodySmall
                         )
-
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            if (canModify) {
-                                OutlinedButton(onClick = {
-                                    editing = a
-                                    tTitle = a.title
-                                    tSummary = a.summary
-                                    tTags = if (a.tags.isBlank()) title else a.tags
-                                    dialogOpen = true
-                                }) {
-                                    Icon(Icons.Filled.Edit, contentDescription = null)
-                                    Spacer(Modifier.width(6.dp)); Text("Edit")
-                                }
-                                TextButton(onClick = {
-                                    scope.launch {
-                                        withContext(Dispatchers.IO) { dbh.deleteArticle(a.id) }
-                                        doRefresh()
-                                    }
-                                }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = null)
-                                    Spacer(Modifier.width(6.dp)); Text("Delete")
-                                }
-                            }
-                        }
                     }
                 }
             }
         }
     }
 
-    // ---- Add/Edit dialog ----
+    // Add/Edit dialog
     if (dialogOpen) {
         AlertDialog(
             onDismissRequest = { dialogOpen = false },
@@ -188,7 +130,6 @@ fun CategoryScreen(
                         value = tTitle,
                         onValueChange = { tTitle = it },
                         label = { Text("Title") },
-                        singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
@@ -200,8 +141,7 @@ fun CategoryScreen(
                     OutlinedTextField(
                         value = tTags,
                         onValueChange = { tTags = it },
-                        label = { Text("Tags (include \"$title\" to keep it here)") },
-                        singleLine = true,
+                        label = { Text("Tags") },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -227,7 +167,7 @@ fun CategoryScreen(
                                 }
                             }
                         }
-                        doRefresh()
+                        refresh()
                     }
                     dialogOpen = false
                 }) { Text("Save") }
@@ -237,18 +177,4 @@ fun CategoryScreen(
             }
         )
     }
-}
-
-/* -------- helpers -------- */
-
-private suspend fun refresh(
-    dbh: FieldCraftDbHelper,
-    title: String,
-    set: (List<Article>) -> Unit
-) {
-    val data = withContext(Dispatchers.IO) {
-        dbh.searchArticles(title)
-            .filter { it.tags.contains(title, ignoreCase = true) || it.title.contains(title, true) }
-    }
-    set(data)
 }
