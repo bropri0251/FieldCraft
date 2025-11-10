@@ -1,149 +1,238 @@
 package com.Houndacivic.fieldcraft
 
+import android.app.Activity
+import android.content.ContentValues
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.Houndacivic.fieldcraft.ui.theme.FieldCraftTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
 class LoginActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val dbh = FieldCraftDbHelper(this)
-        val prefs = FieldPrefs()
-
         setContent {
-            com.Houndacivic.fieldcraft.ui.theme.FieldCraftTheme {
-                Scaffold(topBar = { BackTopBar(title = "Account", onBack = { finish() }) }) { pad ->
-                    var tab by remember { mutableStateOf(1) } // 0=Sign in, 1=Create, 2=Change pw (placeholder)
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(pad)
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        TabRow(selectedTabIndex = tab) {
-                            Tab(selected = tab==0, onClick = { tab=0 }, text = { Text("Sign in") })
-                            Tab(selected = tab==1, onClick = { tab=1 }, text = { Text("Create account") })
-                            Tab(selected = tab==2, onClick = { tab=2 }, text = { Text("Change password") })
-                        }
-
-                        when (tab) {
-                            0 -> SignInPane(dbh, prefs) { finish() }
-                            1 -> RegisterPane(dbh, prefs) { finish() }
-                            else -> Text("Coming soon…")
-                        }
-                    }
-                }
+            FieldCraftTheme {
+                LoginAndRegisterScreen(
+                    onLoginSuccess = {
+                        val ctx = this@LoginActivity
+                        // Safe navigation without MainActivity symbol resolution
+                        val intent = Intent().setClassName(
+                            ctx.packageName,
+                            "com.Houndacivic.fieldcraft.MainActivity"
+                        )
+                        startActivity(intent)
+                        finish()
+                    },
+                    onBack = { finish() }
+                )
             }
         }
     }
 }
 
-/* ---------------- Sign in ---------------- */
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SignInPane(
-    dbh: FieldCraftDbHelper,
-    prefs: FieldPrefs,
-    onSuccess: () -> Unit
+private fun LoginAndRegisterScreen(
+    onLoginSuccess: () -> Unit,
+    onBack: () -> Unit
 ) {
+    val ctx = LocalContext.current
+    val dbh = remember { FieldCraftDbHelper(ctx) }
+
+    // mode + fields
+    var createMode by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
-    var pass by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
 
-    fun attemptLogin() {
-        error = ""
-        if (email.isBlank() || pass.isBlank()) {
-            error = "Enter email and password."
-            return
+    // lockout
+    val locked = !LoginGuard.canAttempt(ctx)
+    val remainingMs = LoginGuard.lockoutRemainingMs(ctx)
+
+    // hardware/gesture back
+    BackHandler { onBack() }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text(if (createMode) "Create Account" else "Sign In") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
         }
-        val u = email.trim()
+    ) { pad ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
 
-        // Admin override (demo)
-        if (u.equals("admin@fieldcraft.app", true) && pass == "FieldCraft#2025") {
-            prefs.signIn(u)
-            prefs.setDisplayName("Admin")
-            prefs.setAdmin(true)
-            Toast.makeText(AppContext.get(), "Admin signed in", Toast.LENGTH_SHORT).show()
-            onSuccess()
-            return
+            if (!createMode && locked) {
+                val sec = (remainingMs / 1000).coerceAtLeast(1)
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Too many attempts. Try again in ${sec}s.",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it.trim() },
+                label = { Text("Email") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text(if (createMode) "Password (10+ chars incl. # @ $ % ! %)" else "Password") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            if (createMode) {
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = confirm,
+                    onValueChange = { confirm = it },
+                    label = { Text("Confirm password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it },
+                    label = { Text("Display name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // Primary action
+            Button(
+                onClick = {
+                    if (createMode) {
+                        // CREATE ACCOUNT
+                        if (email.isBlank() || password.isBlank() || confirm.isBlank() || displayName.isBlank()) {
+                            Toast.makeText(ctx, "All fields are required.", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (password != confirm) {
+                            Toast.makeText(ctx, "Passwords do not match.", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        val specials = "#@\$%!%"
+                        if (password.length < 10 || !password.any { it in specials }) {
+                            Toast.makeText(ctx, "Password must be 10+ chars & include # @ $ % ! %", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        val exists = dbh.readableDatabase.rawQuery(
+                            "SELECT 1 FROM users WHERE email = ? LIMIT 1",
+                            arrayOf(email)
+                        ).use { c -> c.moveToFirst() }
+                        if (exists) {
+                            Toast.makeText(ctx, "Email already registered.", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        val cv = ContentValues().apply {
+                            put("email", email)
+                            put("password", password)      // plaintext acceptable for course demo
+                            put("display_name", displayName)
+                            put("is_admin", 0)
+                        }
+                        val ok = dbh.writableDatabase.insert("users", null, cv) != -1L
+                        if (ok) {
+                            Toast.makeText(ctx, "Account created. Please sign in.", Toast.LENGTH_SHORT).show()
+                            // Switch back to sign-in and clear sensitive fields
+                            createMode = false
+                            password = ""
+                            confirm = ""
+                        } else {
+                            Toast.makeText(ctx, "Failed to create account.", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        // SIGN IN (rate-limited)
+                        if (!LoginGuard.canAttempt(ctx)) {
+                            val sec = (LoginGuard.lockoutRemainingMs(ctx) / 1000).coerceAtLeast(1)
+                            Toast.makeText(ctx, "Locked. Try again in ${sec}s.", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        val ok = dbh.verifyUser(email, password)
+                        if (ok) {
+                            LoginGuard.reset(ctx)
+
+                            // Persist session (+ admin flag for UI)
+                            val isAdmin = dbh.isAdmin(email)
+                            ctx.getSharedPreferences("fieldcraft_prefs", 0).edit()
+                                .putString("u", email)
+                                .putString("p", password)
+                                .putBoolean("is_admin", isAdmin)
+                                .apply()
+
+                            onLoginSuccess()
+                        } else {
+                            LoginGuard.recordFailure(ctx)
+                            Toast.makeText(ctx, "Invalid credentials.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                enabled = createMode || !locked,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (createMode) "Create account" else "Sign in")
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // toggle
+            TextButton(onClick = {
+                createMode = !createMode
+                password = ""
+                confirm = ""
+            }) {
+                Text(if (createMode) "Have an account? Sign in" else "Create an account")
+            }
         }
-
-        if (dbh.verifyUser(u, pass)) {
-            prefs.signIn(u)
-            prefs.setDisplayName(dbh.displayNameFor(u))
-            prefs.setAdmin(false)
-            Toast.makeText(AppContext.get(), "Signed in", Toast.LENGTH_SHORT).show()
-            onSuccess()
-        } else {
-            error = "Invalid email or password."
-        }
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(value = pass, onValueChange = { pass = it }, label = { Text("Password") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
-        Button(onClick = { attemptLogin() }, modifier = Modifier.fillMaxWidth()) { Text("Sign in") }
-    }
-}
-
-/* ---------------- Register ---------------- */
-
-@Composable
-private fun RegisterPane(
-    dbh: FieldCraftDbHelper,
-    prefs: FieldPrefs,
-    onSuccess: () -> Unit
-) {
-    var regEmail by remember { mutableStateOf("") }
-    var regDisplayName by remember { mutableStateOf("") }
-    var regPassword by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf("") }
-
-    fun isValidEmail(s: String) =
-        android.util.Patterns.EMAIL_ADDRESS.matcher(s).matches()
-
-    fun isValidPassword(s: String) =
-        s.length >= 10 && s.any { it in "#@\$!%".toCharArray() }
-
-    fun attemptRegister() {
-        error = ""
-        val email = regEmail.trim()
-        val displayName = regDisplayName.trim()
-        val pw = regPassword
-
-        if (!isValidEmail(email)) { error = "Enter a valid email."; return }
-        if (displayName.length !in 3..32) { error = "Username 3–32 characters."; return }
-        if (!isValidPassword(pw)) { error = "Password ≥10 chars with one of # @ $ ! %."; return }
-        if (dbh.userExistsByEmail(email)) { error = "That email is already registered. Try Sign in."; return }
-
-        try {
-            dbh.insertUser(email, pw, displayName)
-            prefs.signIn(email)
-            prefs.setDisplayName(displayName)
-            prefs.setAdmin(email.equals("admin@fieldcraft.app", true))
-            Toast.makeText(AppContext.get(), "Account created", Toast.LENGTH_SHORT).show()
-            onSuccess()
-        } catch (e: Exception) {
-            error = e.message ?: "Registration failed."
-        }
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedTextField(value = regEmail, onValueChange = { regEmail = it }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(value = regDisplayName, onValueChange = { regDisplayName = it }, label = { Text("Username (display name)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(value = regPassword, onValueChange = { regPassword = it }, label = { Text("Create password") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
-        Button(onClick = { attemptRegister() }, modifier = Modifier.fillMaxWidth()) { Text("Create account") }
     }
 }

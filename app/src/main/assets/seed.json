@@ -1,0 +1,114 @@
+{
+  "articles": [
+    {
+      "id": 1,
+      "title": "A&K PKM Box Mag Rewire",
+      "category": "Maintenance",
+      "tags": [
+        "wiring",
+        "deans"
+      ],
+      "body": "Step-by-step notes to rewire the PKM mag to Deans."
+    },
+    {
+      "id": 2,
+      "title": "Spring Selection 101",
+      "category": "Tech Corner",
+      "tags": [
+        "springs"
+      ],
+      "body": "Guide to choosing the right spring for FPS and ROF goals."
+    },
+    {
+      "id": 3,
+      "title": "FCU Trigger Harness Basics",
+      "category": "Electronics",
+      "tags": [
+        "polarstar",
+        "fcu"
+      ],
+      "body": "Identify the 3-pin harness and safe handling tips."
+    },
+    {
+      "id": 4,
+      "title": "HPA Safety Checklist",
+      "category": "Safety",
+      "tags": [
+        "hpa"
+      ],
+      "body": "Regulator checks, leak tests, and handling practices."
+    },
+    {
+      "id": 5,
+      "title": "Soldering Deans T-Plugs",
+      "category": "Maintenance",
+      "tags": [
+        "soldering"
+      ],
+      "body": "Iron temp, tinning, heat-shrink, and polarity checks."
+    },
+    {
+      "id": 6,
+      "title": "MOSFET Fundamentals",
+      "category": "Electronics",
+      "tags": [
+        "mosfet"
+      ],
+      "body": "Why, when, and how to add a MOSFET to your AEG."
+    },
+    {
+      "id": 7,
+      "title": "Barrel Cleaning Guide",
+      "category": "Maintenance",
+      "tags": [
+        "cleaning"
+      ],
+      "body": "Proper solvents, swabs, and frequency recommendations."
+    },
+    {
+      "id": 8,
+      "title": "Hop-Up Tuning",
+      "category": "Tech Corner",
+      "tags": [
+        "hopup"
+      ],
+      "body": "Buckings, nubs, and consistent backspin basics."
+    },
+    {
+      "id": 9,
+      "title": "Battery Chemistry Primer",
+      "category": "Electronics",
+      "tags": [
+        "lipo"
+      ],
+      "body": "LiPo vs NiMH, C-ratings, storage and safety."
+    },
+    {
+      "id": 10,
+      "title": "Gearbox Shimming Basics",
+      "category": "Tech Corner",
+      "tags": [
+        "gearbox"
+      ],
+      "body": "Noise reduction and wear prevention through shimming."
+    },
+    {
+      "id": 11,
+      "title": "Field Safety Etiquette",
+      "category": "Safety",
+      "tags": [
+        "fieldcraft"
+      ],
+      "body": "Eye pro, engagement rules, and marshaling etiquette."
+    },
+    {
+      "id": 12,
+      "title": "Connector Types Cheat Sheet",
+      "category": "Electronics",
+      "tags": [
+        "connectors"
+      ],
+      "body": "JST, Deans, XT60, and when to use each."
+    }
+  ]
+}
